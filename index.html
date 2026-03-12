@@ -618,8 +618,12 @@
           },
           onStateChange: () => {
             setTimeout(() => {
-              duration = player.getDuration() || duration;
-              if (duration > 0 && B > duration) B = duration;
+              const d = player.getDuration();
+              if (d > 0) {
+                duration = d;
+                if (B > duration) B = duration;
+                if (A > duration) A = 0;
+              }
               updateUI();
             }, 200);
           }
