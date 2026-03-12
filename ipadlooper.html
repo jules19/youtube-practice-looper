@@ -250,13 +250,43 @@
       padding: 0 14px 14px;
     }
 
+    .url-input-wrap {
+      position: relative;
+    }
+
     .url-row input {
+      width: 100%;
       min-height: var(--tap);
       border-radius: 12px;
       border: 1px solid var(--border);
       background: #121722;
       color: var(--text);
-      padding: 10px 12px;
+      padding: 10px 40px 10px 12px;
+    }
+
+    .clear-btn {
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 32px;
+      height: 32px;
+      min-height: unset;
+      border-radius: 50%;
+      border: none;
+      background: #2b3242;
+      color: var(--muted);
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .clear-btn:active {
+      background: #3a4458;
     }
 
     @media (max-width: 740px) {
@@ -282,7 +312,10 @@
       </div>
 
       <div class="url-row">
-        <input id="videoUrl" type="text" value="https://www.youtube.com/watch?v=vHUjd2Qmp0c" autocomplete="off" spellcheck="false" />
+        <div class="url-input-wrap">
+          <input id="videoUrl" type="text" value="https://www.youtube.com/watch?v=vHUjd2Qmp0c" autocomplete="off" spellcheck="false" />
+          <button class="clear-btn" id="clearUrlBtn" aria-label="Clear URL">&times;</button>
+        </div>
         <button class="primary" id="loadBtn">Load Video</button>
       </div>
 
@@ -559,6 +592,7 @@
     document.getElementById('nudgeBackBtn').addEventListener('click', () => nudge(-0.5));
     document.getElementById('nudgeForwardBtn').addEventListener('click', () => nudge(0.5));
     document.getElementById('loadBtn').addEventListener('click', loadVideoFromInput);
+    document.getElementById('clearUrlBtn').addEventListener('click', () => { videoUrlInput.value = ''; videoUrlInput.focus(); });
     speedSelect.addEventListener('change', (e) => setSpeed(e.target.value));
     window.addEventListener('resize', updateUI);
 
