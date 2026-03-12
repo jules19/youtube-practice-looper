@@ -482,7 +482,6 @@
       bLabel.textContent = fmtTime(B);
       lenLabel.textContent = fmtTime(Math.max(0, B - A));
       durationLabel.textContent = `Duration: ${fmtTime(duration)}`;
-      saveState();
     }
 
     function updatePlayhead() {
@@ -509,6 +508,7 @@
       if (!player) return;
       A = clamp(player.getCurrentTime() || 0, 0, Math.max(0, B - 0.05));
       updateUI();
+      saveState();
     }
 
     function setBHere() {
@@ -516,6 +516,7 @@
       const maxDur = safeDuration();
       B = clamp(player.getCurrentTime() || 0, Math.min(A + 0.05, maxDur), maxDur);
       updateUI();
+      saveState();
     }
 
     function nudge(delta) {
@@ -586,6 +587,7 @@
       });
 
       const finish = () => {
+        if (dragTarget === type) saveState();
         dragTarget = null;
         marker.classList.remove('dragging');
       };
