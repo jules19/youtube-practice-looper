@@ -411,15 +411,17 @@
     }
 
     const saved = loadState();
+    const validSave = saved && typeof saved.B === 'number' && saved.B > 0 && saved.B > (saved.A || 0);
     let player = null;
-    let videoId = saved ? saved.videoId : 'vHUjd2Qmp0c';
-    let A = saved ? saved.A : 0;
-    let B = saved ? saved.B : 8;
+    let videoId = validSave ? saved.videoId : 'vHUjd2Qmp0c';
+    let A = validSave ? saved.A : 0;
+    let B = validSave ? saved.B : 8;
     let duration = 0;
     let dragTarget = null;
     let loopCount = 0;
+    let playerReady = false;
 
-    if (saved) {
+    if (validSave) {
       videoUrlInput.value = saved.url || `https://www.youtube.com/watch?v=${videoId}`;
       speedSelect.value = saved.speed || '1';
     }
@@ -608,12 +610,13 @@
         events: {
           onReady: () => {
             duration = player.getDuration() || 0;
-            if (!saved && duration > 0) {
+            if (!validSave && duration > 0) {
               B = Math.min(8, duration);
             }
-            if (saved && saved.speed) {
+            if (validSave && saved.speed) {
               player.setPlaybackRate(parseFloat(saved.speed));
             }
+            playerReady = true;
             updateUI();
             updatePlayhead();
             player.playVideo();
@@ -623,8 +626,10 @@
               const d = player.getDuration();
               if (d > 0) {
                 duration = d;
-                if (B > duration) B = duration;
-                if (A > duration) A = 0;
+                if (playerReady) {
+                  if (B > duration) B = duration;
+                  if (A > duration) A = 0;
+                }
               }
               updateUI();
             }, 200);
