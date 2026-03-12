@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <title>YouTube Practice Looper</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #202532;
+      --text: #f4f7fb;
+      --muted: #aab4c3;
+      --accent: #78a6ff;
+      --accent-2: #9cc0ff;
+      --danger: #ff7a7a;
+      --ok: #7ee0a1;
+      --border: #2b3242;
+      --shadow: 0 10px 30px rgba(0,0,0,0.28);
+      --radius: 16px;
+      --tap: 52px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100%;
+    }
+
+    body {
+      padding: 14px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .app {
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 14px 16px 6px;
+    }
+
+    .title {
+      font-size: clamp(20px, 3vw, 28px);
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .player-wrap {
+      padding: 10px 10px 0;
+    }
+
+    .player-shell {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    #player {
+      width: 100%;
+      height: 100%;
+    }
+
+    .controls {
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .control-row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .control-row.compact {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    button, select {
+      min-height: var(--tap);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #212735;
+      color: var(--text);
+      padding: 10px 12px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button.primary { background: #24427c; border-color: #365da8; }
+    button.success { background: #1d4930; border-color: #2e6c47; }
+    button.warn { background: #5a2c2c; border-color: #844040; }
+
+    button:active { transform: translateY(1px); }
+
+    .timeline-card {
+      padding: 4px 14px 16px;
+    }
+
+    .timeline-labels {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .timeline {
+      position: relative;
+      height: 64px;
+      border-radius: 14px;
+      background: #11151d;
+      border: 1px solid var(--border);
+      overflow: visible;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .track {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      top: 50%;
+      height: 8px;
+      transform: translateY(-50%);
+      background: #283041;
+      border-radius: 999px;
+    }
+
+    .loop-range {
+      position: absolute;
+      top: 50%;
+      height: 8px;
+      transform: translateY(-50%);
+      background: linear-gradient(90deg, rgba(120,166,255,0.35), rgba(156,192,255,0.65));
+      border-radius: 999px;
+    }
+
+    .playhead {
+      position: absolute;
+      top: 12px;
+      bottom: 12px;
+      width: 2px;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 8px rgba(255,255,255,0.25);
+      pointer-events: none;
+    }
+
+    .marker {
+      position: absolute;
+      top: 8px;
+      width: 28px;
+      height: 48px;
+      margin-left: -14px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      touch-action: none;
+      cursor: grab;
+      box-shadow: var(--shadow);
+    }
+
+    .marker.a { background: #2952a7; }
+    .marker.b { background: #8e4343; }
+    .marker.dragging { cursor: grabbing; }
+
+    .marker::after {
+      content: "";
+      position: absolute;
+      bottom: -12px;
+      left: 50%;
+      width: 2px;
+      height: 12px;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.85);
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0 14px 16px;
+    }
+
+    .pill {
+      background: #121722;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .pill .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .pill .value {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .footer-note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 0 14px 16px;
+    }
+
+    .url-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 0 14px 14px;
+    }
+
+    .url-row input {
+      min-height: var(--tap);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #121722;
+      color: var(--text);
+      padding: 10px 12px;
+    }
+
+    @media (max-width: 740px) {
+      body { padding: 10px; }
+      .control-row, .control-row.compact, .meta {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .url-row {
+        grid-template-columns: 1fr;
+      }
+      .timeline {
+        height: 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <h1 class="title">YouTube Practice Looper</h1>
+        <p class="subtitle">Desktop and iPad friendly. Host on your Mac, then open the page from your iPad on the same network.</p>
+      </div>
+
+      <div class="url-row">
+        <input id="videoUrl" type="text" value="https://www.youtube.com/watch?v=vHUjd2Qmp0c" autocomplete="off" spellcheck="false" />
+        <button class="primary" id="loadBtn">Load Video</button>
+      </div>
+
+      <div class="player-wrap">
+        <div class="player-shell">
+          <div id="player"></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="control-row">
+          <button id="setABtn" class="success">Set A</button>
+          <button id="setBBtn" class="warn">Set B</button>
+          <button id="restartBtn">Restart</button>
+          <button id="toggleBtn">Play / Pause</button>
+        </div>
+        <div class="control-row compact">
+          <button id="nudgeBackBtn">-0.5s</button>
+          <button id="nudgeForwardBtn">+0.5s</button>
+          <select id="speedSelect">
+            <option value="1">Speed 1x</option>
+            <option value="0.75">Speed 0.75x</option>
+            <option value="0.5">Speed 0.5x</option>
+            <option value="0.25">Speed 0.25x</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="timeline-card">
+        <div class="timeline-labels">
+          <div>Drag A and B to set the loop visually</div>
+          <div id="durationLabel">Duration: --:--</div>
+        </div>
+        <div class="timeline" id="timeline">
+          <div class="track"></div>
+          <div class="loop-range" id="loopRange"></div>
+          <div class="playhead" id="playhead"></div>
+          <div class="marker a" id="markerA">A</div>
+          <div class="marker b" id="markerB">B</div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <div class="pill"><div class="label">A</div><div class="value" id="aLabel">0:00.00</div></div>
+        <div class="pill"><div class="label">B</div><div class="value" id="bLabel">0:08.00</div></div>
+        <div class="pill"><div class="label">Loop length</div><div class="value" id="lenLabel">0:08.00</div></div>
+        <div class="pill"><div class="label">Current time</div><div class="value" id="curLabel">0:00.00</div></div>
+      </div>
+
+      <div class="footer-note">
+        Tip for iPad: keep the page in Safari, tap once if autoplay is blocked, and use the touch controls. If you host this on your Mac, open it on the iPad using your Mac’s local network address, not <code>file://</code>.
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script>
+    let player = null;
+    let videoId = 'vHUjd2Qmp0c';
+    let A = 0;
+    let B = 8;
+    let duration = 0;
+    let dragTarget = null;
+    let loopTimer = null;
+
+    const timeline = document.getElementById('timeline');
+    const loopRange = document.getElementById('loopRange');
+    const playhead = document.getElementById('playhead');
+    const markerA = document.getElementById('markerA');
+    const markerB = document.getElementById('markerB');
+    const aLabel = document.getElementById('aLabel');
+    const bLabel = document.getElementById('bLabel');
+    const lenLabel = document.getElementById('lenLabel');
+    const curLabel = document.getElementById('curLabel');
+    const durationLabel = document.getElementById('durationLabel');
+    const speedSelect = document.getElementById('speedSelect');
+    const videoUrlInput = document.getElementById('videoUrl');
+
+    function fmtTime(sec) {
+      if (!isFinite(sec)) return '--:--';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      const frac = Math.floor((sec - Math.floor(sec)) * 100);
+      return `${m}:${String(s).padStart(2, '0')}.${String(frac).padStart(2, '0')}`;
+    }
+
+    function clamp(v, min, max) {
+      return Math.min(max, Math.max(min, v));
+    }
+
+    function safeDuration() {
+      return duration > 0 ? duration : Math.max(B, 8, 10);
+    }
+
+    function timeToPx(t) {
+      const rect = timeline.getBoundingClientRect();
+      const left = 12;
+      const right = rect.width - 12;
+      const width = Math.max(1, right - left);
+      return left + (clamp(t, 0, safeDuration()) / safeDuration()) * width;
+    }
+
+    function pxToTime(x) {
+      const rect = timeline.getBoundingClientRect();
+      const left = 12;
+      const right = rect.width - 12;
+      const width = Math.max(1, right - left);
+      const px = clamp(x - rect.left, left, right);
+      return ((px - left) / width) * safeDuration();
+    }
+
+    function updateUI() {
+      const ax = timeToPx(A);
+      const bx = timeToPx(B);
+      markerA.style.left = `${ax}px`;
+      markerB.style.left = `${bx}px`;
+      loopRange.style.left = `${Math.min(ax, bx)}px`;
+      loopRange.style.width = `${Math.max(6, Math.abs(bx - ax))}px`;
+      aLabel.textContent = fmtTime(A);
+      bLabel.textContent = fmtTime(B);
+      lenLabel.textContent = fmtTime(Math.max(0, B - A));
+      durationLabel.textContent = `Duration: ${fmtTime(duration)}`;
+    }
+
+    function updatePlayhead() {
+      if (!player || typeof player.getCurrentTime !== 'function') return;
+      const t = player.getCurrentTime() || 0;
+      curLabel.textContent = fmtTime(t);
+      playhead.style.left = `${timeToPx(t)}px`;
+    }
+
+    function seekToLoopStart() {
+      if (player && typeof player.seekTo === 'function') {
+        player.seekTo(A, true);
+      }
+    }
+
+    function togglePlay() {
+      if (!player) return;
+      const state = player.getPlayerState();
+      if (state === YT.PlayerState.PLAYING) player.pauseVideo();
+      else player.playVideo();
+    }
+
+    function setAHere() {
+      if (!player) return;
+      A = clamp(player.getCurrentTime() || 0, 0, Math.max(0, B - 0.05));
+      updateUI();
+    }
+
+    function setBHere() {
+      if (!player) return;
+      const maxDur = safeDuration();
+      B = clamp(player.getCurrentTime() || 0, Math.min(A + 0.05, maxDur), maxDur);
+      updateUI();
+    }
+
+    function nudge(delta) {
+      if (!player) return;
+      const t = clamp((player.getCurrentTime() || 0) + delta, 0, safeDuration());
+      player.seekTo(t, true);
+    }
+
+    function setSpeed(v) {
+      if (player && typeof player.setPlaybackRate === 'function') {
+        player.setPlaybackRate(parseFloat(v));
+      }
+    }
+
+    function extractVideoId(input) {
+      input = input.trim();
+      if (/^[a-zA-Z0-9_-]{11}$/.test(input)) return input;
+      try {
+        const u = new URL(input);
+        if (u.hostname.includes('youtu.be')) {
+          const id = u.pathname.split('/').filter(Boolean)[0];
+          if (id) return id;
+        }
+        if (u.searchParams.get('v')) return u.searchParams.get('v');
+        const parts = u.pathname.split('/').filter(Boolean);
+        const embedIndex = parts.indexOf('embed');
+        if (embedIndex >= 0 && parts[embedIndex + 1]) return parts[embedIndex + 1];
+      } catch (e) {}
+      return null;
+    }
+
+    function loadVideoFromInput() {
+      const nextId = extractVideoId(videoUrlInput.value);
+      if (!nextId) {
+        alert('Could not extract a YouTube video ID from that input.');
+        return;
+      }
+      videoId = nextId;
+      A = 0;
+      B = 8;
+      duration = 0;
+      if (player && typeof player.loadVideoById === 'function') {
+        player.loadVideoById({ videoId, startSeconds: 0 });
+      }
+      updateUI();
+    }
+
+    function installDrag(marker, type) {
+      marker.addEventListener('pointerdown', (e) => {
+        dragTarget = type;
+        marker.classList.add('dragging');
+        marker.setPointerCapture(e.pointerId);
+      });
+
+      marker.addEventListener('pointermove', (e) => {
+        if (dragTarget !== type) return;
+        const t = pxToTime(e.clientX);
+        if (type === 'A') {
+          A = clamp(t, 0, Math.max(0, B - 0.05));
+        } else {
+          B = clamp(t, Math.min(A + 0.05, safeDuration()), safeDuration());
+        }
+        updateUI();
+      });
+
+      const finish = () => {
+        dragTarget = null;
+        marker.classList.remove('dragging');
+      };
+
+      marker.addEventListener('pointerup', finish);
+      marker.addEventListener('pointercancel', finish);
+    }
+
+    function onYouTubeIframeAPIReady() {
+      player = new YT.Player('player', {
+        videoId,
+        playerVars: {
+          controls: 1,
+          rel: 0,
+          playsinline: 1,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: () => {
+            duration = player.getDuration() || 0;
+            if (duration > 0) {
+              B = Math.min(8, duration);
+            }
+            updateUI();
+            updatePlayhead();
+            player.playVideo();
+          },
+          onStateChange: () => {
+            setTimeout(() => {
+              duration = player.getDuration() || duration;
+              if (duration > 0 && B > duration) B = duration;
+              updateUI();
+            }, 200);
+          }
+        }
+      });
+
+      if (loopTimer) clearInterval(loopTimer);
+      loopTimer = setInterval(() => {
+        if (!player || typeof player.getCurrentTime !== 'function') return;
+        updatePlayhead();
+        const state = player.getPlayerState();
+        if (state === YT.PlayerState.PLAYING && B > A && player.getCurrentTime() >= B) {
+          player.seekTo(A, true);
+        }
+      }, 40);
+    }
+
+    document.getElementById('setABtn').addEventListener('click', setAHere);
+    document.getElementById('setBBtn').addEventListener('click', setBHere);
+    document.getElementById('restartBtn').addEventListener('click', seekToLoopStart);
+    document.getElementById('toggleBtn').addEventListener('click', togglePlay);
+    document.getElementById('nudgeBackBtn').addEventListener('click', () => nudge(-0.5));
+    document.getElementById('nudgeForwardBtn').addEventListener('click', () => nudge(0.5));
+    document.getElementById('loadBtn').addEventListener('click', loadVideoFromInput);
+    speedSelect.addEventListener('change', (e) => setSpeed(e.target.value));
+    window.addEventListener('resize', updateUI);
+
+    installDrag(markerA, 'A');
+    installDrag(markerB, 'B');
+    updateUI();
+  </script>
+</body>
+</html>
