@@ -166,6 +166,17 @@
       transform: translateY(-50%);
       background: linear-gradient(90deg, rgba(120,166,255,0.35), rgba(156,192,255,0.65));
       border-radius: 999px;
+      transition: box-shadow 0.3s;
+    }
+
+    .loop-range.active {
+      box-shadow: 0 0 12px rgba(120,166,255,0.5), 0 0 4px rgba(120,166,255,0.3);
+      animation: loopPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loopPulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(120,166,255,0.5), 0 0 4px rgba(120,166,255,0.3); }
+      50% { box-shadow: 0 0 20px rgba(120,166,255,0.7), 0 0 8px rgba(120,166,255,0.4); }
     }
 
     .playhead {
@@ -194,6 +205,8 @@
       touch-action: none;
       cursor: grab;
       box-shadow: var(--shadow);
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .marker.a { background: #2952a7; }
@@ -213,7 +226,7 @@
 
     .meta {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 10px;
       padding: 0 14px 16px;
     }
@@ -291,8 +304,11 @@
 
     @media (max-width: 740px) {
       body { padding: 10px; }
-      .control-row, .control-row.compact, .meta {
+      .control-row, .control-row.compact {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .meta {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
       .url-row {
         grid-template-columns: 1fr;
@@ -363,10 +379,12 @@
         <div class="pill"><div class="label">B</div><div class="value" id="bLabel">0:08.00</div></div>
         <div class="pill"><div class="label">Loop length</div><div class="value" id="lenLabel">0:08.00</div></div>
         <div class="pill"><div class="label">Current time</div><div class="value" id="curLabel">0:00.00</div></div>
+        <div class="pill"><div class="label">Loops</div><div class="value" id="loopCountLabel">0</div></div>
       </div>
 
       <div class="footer-note">
-        Tip for iPad: keep the page in Safari, tap once if autoplay is blocked, and use the touch controls. If you host this on your Mac, open it on the iPad using your Mac’s local network address, not <code>file://</code>.
+        Keyboard: <b>A</b> / <b>B</b> set markers, <b>Space</b> play/pause, <b>R</b> restart loop, <b>Arrow keys</b> nudge.<br>
+        iPad: host on your Mac, open via its local IP in Safari. Tap the timeline to seek.
       </div>
     </div>
   </div>
@@ -379,7 +397,7 @@
     let B = 8;
     let duration = 0;
     let dragTarget = null;
-    let loopTimer = null;
+    let loopCount = 0;
 
     const timeline = document.getElementById('timeline');
     const loopRange = document.getElementById('loopRange');
@@ -393,6 +411,7 @@
     const durationLabel = document.getElementById('durationLabel');
     const speedSelect = document.getElementById('speedSelect');
     const videoUrlInput = document.getElementById('videoUrl');
+    const loopCountLabel = document.getElementById('loopCountLabel');
 
     function fmtTime(sec) {
       if (!isFinite(sec)) return '--:--';
@@ -512,6 +531,8 @@
       A = 0;
       B = 8;
       duration = 0;
+      loopCount = 0;
+      loopCountLabel.textContent = '0';
       if (player && typeof player.loadVideoById === 'function') {
         player.loadVideoById({ videoId, startSeconds: 0 });
       }
@@ -574,15 +595,21 @@
         }
       });
 
-      if (loopTimer) clearInterval(loopTimer);
-      loopTimer = setInterval(() => {
-        if (!player || typeof player.getCurrentTime !== 'function') return;
-        updatePlayhead();
-        const state = player.getPlayerState();
-        if (state === YT.PlayerState.PLAYING && B > A && player.getCurrentTime() >= B) {
-          player.seekTo(A, true);
+      function tick() {
+        if (player && typeof player.getCurrentTime === 'function') {
+          updatePlayhead();
+          const state = player.getPlayerState();
+          const isLooping = state === YT.PlayerState.PLAYING && B > A;
+          loopRange.classList.toggle('active', isLooping);
+          if (isLooping && player.getCurrentTime() >= B) {
+            loopCount++;
+            loopCountLabel.textContent = loopCount;
+            player.seekTo(A, true);
+          }
         }
-      }, 40);
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
     }
 
     document.getElementById('setABtn').addEventListener('click', setAHere);
@@ -598,6 +625,26 @@
 
     installDrag(markerA, 'A');
     installDrag(markerB, 'B');
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      switch (e.key.toLowerCase()) {
+        case 'a': setAHere(); break;
+        case 'b': setBHere(); break;
+        case 'r': seekToLoopStart(); break;
+        case ' ': e.preventDefault(); togglePlay(); break;
+        case 'arrowleft': nudge(-0.5); break;
+        case 'arrowright': nudge(0.5); break;
+      }
+    });
+
+    timeline.addEventListener('click', (e) => {
+      if (e.target.classList.contains('marker')) return;
+      if (!player || typeof player.seekTo !== 'function') return;
+      const t = pxToTime(e.clientX);
+      player.seekTo(t, true);
+    });
+
     updateUI();
   </script>
 </body>
