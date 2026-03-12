@@ -419,7 +419,6 @@
     let duration = 0;
     let dragTarget = null;
     let loopCount = 0;
-    let playerReady = false;
 
     if (validSave) {
       videoUrlInput.value = saved.url || `https://www.youtube.com/watch?v=${videoId}`;
@@ -616,7 +615,6 @@
             if (validSave && saved.speed) {
               player.setPlaybackRate(parseFloat(saved.speed));
             }
-            playerReady = true;
             updateUI();
             updatePlayhead();
             player.playVideo();
@@ -624,13 +622,7 @@
           onStateChange: () => {
             setTimeout(() => {
               const d = player.getDuration();
-              if (d > 0) {
-                duration = d;
-                if (playerReady) {
-                  if (B > duration) B = duration;
-                  if (A > duration) A = 0;
-                }
-              }
+              if (d > 0) duration = d;
               updateUI();
             }, 200);
           }
