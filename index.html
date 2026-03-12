@@ -391,13 +391,38 @@
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
+    const STORAGE_KEY = 'yt-looper-state';
+
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          videoId, A, B, speed: speedSelect.value,
+          url: videoUrlInput.value
+        }));
+      } catch (e) {}
+    }
+
+    function loadState() {
+      try {
+        const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (s) return s;
+      } catch (e) {}
+      return null;
+    }
+
+    const saved = loadState();
     let player = null;
-    let videoId = 'vHUjd2Qmp0c';
-    let A = 0;
-    let B = 8;
+    let videoId = saved ? saved.videoId : 'vHUjd2Qmp0c';
+    let A = saved ? saved.A : 0;
+    let B = saved ? saved.B : 8;
     let duration = 0;
     let dragTarget = null;
     let loopCount = 0;
+
+    if (saved) {
+      videoUrlInput.value = saved.url || `https://www.youtube.com/watch?v=${videoId}`;
+      speedSelect.value = saved.speed || '1';
+    }
 
     const timeline = document.getElementById('timeline');
     const loopRange = document.getElementById('loopRange');
@@ -457,6 +482,7 @@
       bLabel.textContent = fmtTime(B);
       lenLabel.textContent = fmtTime(Math.max(0, B - A));
       durationLabel.textContent = `Duration: ${fmtTime(duration)}`;
+      saveState();
     }
 
     function updatePlayhead() {
@@ -502,6 +528,7 @@
       if (player && typeof player.setPlaybackRate === 'function') {
         player.setPlaybackRate(parseFloat(v));
       }
+      saveState();
     }
 
     function extractVideoId(input) {
@@ -537,6 +564,7 @@
         player.loadVideoById({ videoId, startSeconds: 0 });
       }
       updateUI();
+      saveState();
     }
 
     function installDrag(marker, type) {
@@ -578,8 +606,11 @@
         events: {
           onReady: () => {
             duration = player.getDuration() || 0;
-            if (duration > 0) {
+            if (!saved && duration > 0) {
               B = Math.min(8, duration);
+            }
+            if (saved && saved.speed) {
+              player.setPlaybackRate(parseFloat(saved.speed));
             }
             updateUI();
             updatePlayhead();
