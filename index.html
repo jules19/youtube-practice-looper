@@ -609,6 +609,9 @@
         },
         events: {
           onReady: () => {
+            const iframe = player.getIframe();
+            iframe.setAttribute('allowfullscreen', '');
+            iframe.setAttribute('allow', 'fullscreen; autoplay');
             duration = player.getDuration() || 0;
             if (!validSave && duration > 0) {
               B = Math.min(8, duration);
