@@ -179,6 +179,20 @@
       50% { box-shadow: 0 0 20px rgba(120,166,255,0.7), 0 0 8px rgba(120,166,255,0.4); }
     }
 
+    .loop-range.micro {
+      background: linear-gradient(90deg, rgba(255,180,100,0.4), rgba(255,140,60,0.7));
+    }
+
+    .loop-range.micro.active {
+      box-shadow: 0 0 12px rgba(255,160,80,0.5), 0 0 4px rgba(255,140,60,0.3);
+      animation: microPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes microPulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(255,160,80,0.5), 0 0 4px rgba(255,140,60,0.3); }
+      50% { box-shadow: 0 0 20px rgba(255,160,80,0.7), 0 0 8px rgba(255,140,60,0.4); }
+    }
+
     .playhead {
       position: absolute;
       top: 12px;
@@ -447,9 +461,10 @@
           <button id="restartBtn">Restart</button>
           <button id="toggleBtn">Play / Pause</button>
         </div>
-        <div class="control-row compact">
+        <div class="control-row" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
           <button id="nudgeBackBtn">-0.5s</button>
           <button id="nudgeForwardBtn">+0.5s</button>
+          <button id="microBtn">Micro</button>
           <select id="speedSelect">
             <option value="1">Speed 1x</option>
             <option value="0.75">Speed 0.75x</option>
@@ -482,9 +497,9 @@
       </div>
 
       <div class="footer-note">
-        Keyboard: <b>A</b> / <b>B</b> set markers, <b>Space</b> play/pause, <b>R</b> restart loop, <b>Arrow keys</b> nudge.<br>
+        Keyboard: <b>A</b> / <b>B</b> set markers, <b>Space</b> play/pause, <b>R</b> restart loop, <b>Arrow keys</b> nudge, <b>M</b> micro-loop.<br>
         iPad: host on your Mac, open via its local IP in Safari. Tap the timeline to seek.
-        <span style="float:right;opacity:0.4">v8</span>
+        <span style="float:right;opacity:0.4">v9</span>
       </div>
     </div>
   </div>
@@ -548,6 +563,10 @@
     let duration = 0;
     let dragTarget = null;
     let loopCount = 0;
+    let isMicro = false;
+    let microA = 0;
+    let microB = 0;
+    const MICRO_RADIUS = 1.5;
 
     const timeline = document.getElementById('timeline');
     const loopRange = document.getElementById('loopRange');
@@ -607,12 +626,15 @@
     }
 
     function updateUI() {
-      const ax = timeToPx(A);
-      const bx = timeToPx(B);
-      markerA.style.left = `${ax}px`;
-      markerB.style.left = `${bx}px`;
+      const effectiveA = isMicro ? microA : A;
+      const effectiveB = isMicro ? microB : B;
+      markerA.style.left = `${timeToPx(A)}px`;
+      markerB.style.left = `${timeToPx(B)}px`;
+      const ax = timeToPx(effectiveA);
+      const bx = timeToPx(effectiveB);
       loopRange.style.left = `${Math.min(ax, bx)}px`;
       loopRange.style.width = `${Math.max(6, Math.abs(bx - ax))}px`;
+      loopRange.classList.toggle('micro', isMicro);
       aLabel.textContent = fmtTime(A);
       bLabel.textContent = fmtTime(B);
       lenLabel.textContent = fmtTime(Math.max(0, B - A));
@@ -640,8 +662,26 @@
       else player.playVideo();
     }
 
+    function enterMicro() {
+      if (!player) return;
+      if (isMicro) { exitMicro(); return; }
+      const t = player.getCurrentTime() || 0;
+      const d = safeDuration();
+      microA = clamp(t - MICRO_RADIUS, 0, d);
+      microB = clamp(t + MICRO_RADIUS, 0, d);
+      isMicro = true;
+      updateUI();
+    }
+
+    function exitMicro() {
+      if (!isMicro) return;
+      isMicro = false;
+      updateUI();
+    }
+
     function setAHere() {
       if (!player) return;
+      exitMicro();
       A = clamp(player.getCurrentTime() || 0, 0, Math.max(0, B - 0.05));
       updateUI();
       saveState();
@@ -649,6 +689,7 @@
 
     function setBHere() {
       if (!player) return;
+      exitMicro();
       const maxDur = safeDuration();
       B = clamp(player.getCurrentTime() || 0, Math.min(A + 0.05, maxDur), maxDur);
       updateUI();
@@ -725,6 +766,7 @@
     function loadFromHistory(index) {
       const h = videoHistory[index];
       if (!h) return;
+      exitMicro();
       saveState();
       videoHistory.splice(index, 1);
       videoHistory.unshift(h);
@@ -750,6 +792,7 @@
         alert('Could not extract a YouTube video ID from that input.');
         return;
       }
+      exitMicro();
       saveState();
       videoId = nextId;
       A = 0;
@@ -766,6 +809,7 @@
 
     function installDrag(marker, type) {
       marker.addEventListener('pointerdown', (e) => {
+        exitMicro();
         dragTarget = type;
         marker.classList.add('dragging');
         marker.setPointerCapture(e.pointerId);
@@ -833,15 +877,19 @@
       function tick() {
         const t = updatePlayhead();
         if (t >= 0) {
-          const isLooping = player.getPlayerState() === YT.PlayerState.PLAYING && B > A;
+          const eA = isMicro ? microA : A;
+          const eB = isMicro ? microB : B;
+          const isLooping = player.getPlayerState() === YT.PlayerState.PLAYING && eB > eA;
           if (isLooping !== wasLooping) {
             loopRange.classList.toggle('active', isLooping);
             wasLooping = isLooping;
           }
-          if (isLooping && t >= B) {
-            loopCount++;
-            loopCountLabel.textContent = loopCount;
-            player.seekTo(A, true);
+          if (isLooping && t >= eB) {
+            if (!isMicro) {
+              loopCount++;
+              loopCountLabel.textContent = loopCount;
+            }
+            player.seekTo(eA, true);
           }
         }
         requestAnimationFrame(tick);
@@ -878,6 +926,7 @@
     document.getElementById('nudgeBackBtn').addEventListener('click', () => nudge(-0.5));
     document.getElementById('nudgeForwardBtn').addEventListener('click', () => nudge(0.5));
     document.getElementById('loadBtn').addEventListener('click', loadVideoFromInput);
+    document.getElementById('microBtn').addEventListener('click', enterMicro);
     document.getElementById('clearUrlBtn').addEventListener('click', () => { videoUrlInput.value = ''; videoUrlInput.focus(); });
     speedSelect.addEventListener('change', (e) => setSpeed(e.target.value));
     window.addEventListener('resize', updateUI);
@@ -894,6 +943,7 @@
         case ' ': e.preventDefault(); togglePlay(); break;
         case 'arrowleft': nudge(-0.5); break;
         case 'arrowright': nudge(0.5); break;
+        case 'm': enterMicro(); break;
       }
     });
 
