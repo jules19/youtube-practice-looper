@@ -302,6 +302,98 @@
       background: #3a4458;
     }
 
+    .history-section {
+      padding: 0 14px 14px;
+    }
+
+    .history-toggle {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-2);
+      color: var(--muted);
+      padding: 8px 14px;
+      cursor: pointer;
+      touch-action: manipulation;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    .history-toggle:active {
+      transform: translateY(1px);
+    }
+
+    .history-list {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-entry {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: var(--tap);
+      padding: 8px 12px;
+      background: #121722;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .history-entry:active {
+      background: #1a2030;
+    }
+
+    .history-entry.active {
+      border-color: var(--accent);
+    }
+
+    .history-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .history-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .history-delete {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      min-height: unset;
+      border-radius: 50%;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .history-delete:hover {
+      background: #5a2c2c;
+      color: var(--danger);
+    }
+
     @media (max-width: 740px) {
       body { padding: 10px; }
       .control-row, .control-row.compact {
@@ -333,6 +425,13 @@
           <button class="clear-btn" id="clearUrlBtn" aria-label="Clear URL">&times;</button>
         </div>
         <button class="primary" id="loadBtn">Load Video</button>
+      </div>
+
+      <div id="historySection" class="history-section" style="display:none">
+        <button id="historyToggle" class="history-toggle">
+          <span id="historyArrow">▶</span> Recent videos <span id="historyCount"></span>
+        </button>
+        <div id="historyList" class="history-list" style="display:none"></div>
       </div>
 
       <div class="player-wrap">
@@ -385,33 +484,62 @@
       <div class="footer-note">
         Keyboard: <b>A</b> / <b>B</b> set markers, <b>Space</b> play/pause, <b>R</b> restart loop, <b>Arrow keys</b> nudge.<br>
         iPad: host on your Mac, open via its local IP in Safari. Tap the timeline to seek.
-        <span style="float:right;opacity:0.4">v7</span>
+        <span style="float:right;opacity:0.4">v8</span>
       </div>
     </div>
   </div>
 
   <script src="https://www.youtube.com/iframe_api"></script>
   <script>
-    const STORAGE_KEY = 'yt-looper-state';
+    const HISTORY_KEY = 'yt-looper-history';
+    const MAX_HISTORY = 10;
+
+    function loadHistory() {
+      try {
+        const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+        if (Array.isArray(h)) return h;
+      } catch (e) {}
+      // Migration from old single-state key
+      try {
+        const old = JSON.parse(localStorage.getItem('yt-looper-state'));
+        if (old && old.videoId) {
+          localStorage.removeItem('yt-looper-state');
+          return [old];
+        }
+      } catch (e) {}
+      return [];
+    }
+
+    function saveVideoHistory() {
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(videoHistory.slice(0, MAX_HISTORY)));
+      } catch (e) {}
+    }
 
     function saveState() {
+      if (videoHistory.length > 0 && videoHistory[0].videoId === videoId) {
+        videoHistory[0].A = A;
+        videoHistory[0].B = B;
+        videoHistory[0].speed = speedSelect.value;
+        videoHistory[0].url = videoUrlInput.value;
+      }
+      saveVideoHistory();
+    }
+
+    function backfillTitle() {
+      if (videoHistory.length === 0 || videoHistory[0].videoId !== videoId || videoHistory[0].title) return;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          videoId, A, B, speed: speedSelect.value,
-          url: videoUrlInput.value
-        }));
+        const t = player.getVideoData().title;
+        if (t) {
+          videoHistory[0].title = t;
+          saveVideoHistory();
+          renderHistory();
+        }
       } catch (e) {}
     }
 
-    function loadState() {
-      try {
-        const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
-        if (s) return s;
-      } catch (e) {}
-      return null;
-    }
-
-    const saved = loadState();
+    let videoHistory = loadHistory();
+    const saved = videoHistory[0] || null;
     const validSave = saved && typeof saved.B === 'number' && saved.B > 0 && saved.B > (saved.A || 0);
     let player = null;
     let videoId = validSave ? saved.videoId : 'vHUjd2Qmp0c';
@@ -434,6 +562,11 @@
     const speedSelect = document.getElementById('speedSelect');
     const videoUrlInput = document.getElementById('videoUrl');
     const loopCountLabel = document.getElementById('loopCountLabel');
+    const historySection = document.getElementById('historySection');
+    const historyToggle = document.getElementById('historyToggle');
+    const historyArrow = document.getElementById('historyArrow');
+    const historyList = document.getElementById('historyList');
+    const historyCount = document.getElementById('historyCount');
 
     if (validSave) {
       videoUrlInput.value = saved.url || `https://www.youtube.com/watch?v=${videoId}`;
@@ -552,23 +685,83 @@
       return null;
     }
 
+    function renderHistory() {
+      if (videoHistory.length === 0) { historySection.style.display = 'none'; return; }
+      historySection.style.display = '';
+      historyCount.textContent = `(${videoHistory.length})`;
+      historyList.innerHTML = '';
+      videoHistory.forEach((h, i) => {
+        const entry = document.createElement('div');
+        entry.className = 'history-entry' + (h.videoId === videoId ? ' active' : '');
+        entry.dataset.index = i;
+        const info = document.createElement('div');
+        info.className = 'history-info';
+        const title = document.createElement('div');
+        title.className = 'history-title';
+        title.textContent = h.title || h.videoId;
+        const meta = document.createElement('div');
+        meta.className = 'history-meta';
+        meta.textContent = `${fmtTime(h.A)} – ${fmtTime(h.B)} · ${h.speed}x`;
+        info.append(title, meta);
+        const del = document.createElement('button');
+        del.className = 'history-delete';
+        del.dataset.index = i;
+        del.textContent = '✕';
+        entry.append(info, del);
+        historyList.appendChild(entry);
+      });
+    }
+
+    function upsertHistory(vid, url) {
+      const existing = videoHistory.findIndex(h => h.videoId === vid);
+      const entry = existing >= 0 ? videoHistory.splice(existing, 1)[0] : { videoId: vid, title: '', url: url, A: 0, B: 8, speed: '1' };
+      entry.url = url;
+      videoHistory.unshift(entry);
+      if (videoHistory.length > MAX_HISTORY) videoHistory.length = MAX_HISTORY;
+      saveVideoHistory();
+      renderHistory();
+    }
+
+    function loadFromHistory(index) {
+      const h = videoHistory[index];
+      if (!h) return;
+      saveState();
+      videoHistory.splice(index, 1);
+      videoHistory.unshift(h);
+      videoId = h.videoId;
+      A = h.A;
+      B = h.B;
+      duration = 0;
+      loopCount = 0;
+      loopCountLabel.textContent = '0';
+      videoUrlInput.value = h.url || `https://www.youtube.com/watch?v=${h.videoId}`;
+      speedSelect.value = h.speed || '1';
+      if (player && typeof player.loadVideoById === 'function') {
+        player.loadVideoById({ videoId, startSeconds: A });
+      }
+      updateUI();
+      saveVideoHistory();
+      renderHistory();
+    }
+
     function loadVideoFromInput() {
       const nextId = extractVideoId(videoUrlInput.value);
       if (!nextId) {
         alert('Could not extract a YouTube video ID from that input.');
         return;
       }
+      saveState();
       videoId = nextId;
       A = 0;
       B = 8;
       duration = 0;
       loopCount = 0;
       loopCountLabel.textContent = '0';
+      upsertHistory(videoId, videoUrlInput.value);
       if (player && typeof player.loadVideoById === 'function') {
         player.loadVideoById({ videoId, startSeconds: 0 });
       }
       updateUI();
-      saveState();
     }
 
     function installDrag(marker, type) {
@@ -620,6 +813,7 @@
             if (validSave && saved.speed) {
               player.setPlaybackRate(parseFloat(saved.speed));
             }
+            backfillTitle();
             updateUI();
             updatePlayhead();
             player.playVideo();
@@ -628,6 +822,7 @@
             setTimeout(() => {
               const d = player.getDuration();
               if (d > 0) duration = d;
+              backfillTitle();
               updateUI();
             }, 200);
           }
@@ -653,6 +848,28 @@
       }
       requestAnimationFrame(tick);
     }
+
+    historyToggle.addEventListener('click', () => {
+      const opening = historyList.style.display === 'none';
+      historyList.style.display = opening ? '' : 'none';
+      historyArrow.textContent = opening ? '▼' : '▶';
+    });
+
+    historyList.addEventListener('click', (e) => {
+      const del = e.target.closest('.history-delete');
+      if (del) {
+        e.stopPropagation();
+        const idx = parseInt(del.dataset.index, 10);
+        videoHistory.splice(idx, 1);
+        saveVideoHistory();
+        renderHistory();
+        return;
+      }
+      const entry = e.target.closest('.history-entry');
+      if (entry) {
+        loadFromHistory(parseInt(entry.dataset.index, 10));
+      }
+    });
 
     document.getElementById('setABtn').addEventListener('click', setAHere);
     document.getElementById('setBBtn').addEventListener('click', setBHere);
@@ -687,6 +904,12 @@
       player.seekTo(t, true);
     });
 
+    // Seed history if empty (first visit or fresh migration with no entry yet)
+    if (videoHistory.length === 0) {
+      videoHistory.push({ videoId, title: '', url: videoUrlInput.value, A, B, speed: speedSelect.value });
+      saveVideoHistory();
+    }
+    renderHistory();
     updateUI();
   </script>
 </body>
