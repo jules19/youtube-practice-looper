@@ -780,6 +780,7 @@
       speedSelect.value = h.speed || '1';
       if (player && typeof player.loadVideoById === 'function') {
         player.loadVideoById({ videoId, startSeconds: A });
+        player.setPlaybackRate(parseFloat(speedSelect.value));
       }
       updateUI();
       saveVideoHistory();
