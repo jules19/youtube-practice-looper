@@ -651,7 +651,7 @@
 
     function seekToLoopStart() {
       if (player && typeof player.seekTo === 'function') {
-        player.seekTo(A, true);
+        player.seekTo(isMicro ? microA : A, true);
       }
     }
 
@@ -796,14 +796,18 @@
       exitMicro();
       saveState();
       videoId = nextId;
-      A = 0;
-      B = 8;
+      const existing = videoHistory.find(h => h.videoId === nextId);
+      A = existing ? existing.A : 0;
+      B = existing ? existing.B : 8;
+      const spd = existing ? existing.speed : '1';
+      speedSelect.value = spd;
       duration = 0;
       loopCount = 0;
       loopCountLabel.textContent = '0';
       upsertHistory(videoId, videoUrlInput.value);
       if (player && typeof player.loadVideoById === 'function') {
-        player.loadVideoById({ videoId, startSeconds: 0 });
+        player.loadVideoById({ videoId, startSeconds: A });
+        player.setPlaybackRate(parseFloat(spd));
       }
       updateUI();
     }
